@@ -7,6 +7,7 @@ Preliminary documentation at https://github.com/ipython/ipython/wiki/IPEP-16%3A-
 # Distributed under the terms of the Modified BSD License.
 import asyncio
 import json
+import requests
 
 try:
     from jupyter_client.jsonutil import json_default
@@ -16,6 +17,7 @@ except ImportError:
 from jupyter_client.kernelspec import NoSuchKernel
 from jupyter_core.utils import ensure_async
 from tornado import web
+from pathlib import Path
 
 from jupyter_server.auth.decorator import authorized
 from jupyter_server.utils import url_path_join
@@ -40,7 +42,48 @@ class SessionRootHandler(SessionsAPIHandler):
         """Get a list of running sessions."""
         sm = self.session_manager
         sessions = await ensure_async(sm.list_sessions())
+        self.sending_heartbeat()
         self.finish(json.dumps(sessions, default=json_default))
+
+    def read_openhydra_config(self):
+        """
+        Read the OpenHydra configuration file from user's home directory.
+        Returns the config as a dictionary or None if file doesn't exist.
+        """
+        config_path = Path.home() / '.openhydra' / 'config'
+        
+        try:
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    return json.load(f)
+            else:
+                return None
+        except (json.JSONDecodeError, IOError) as e:
+            self.log.error(f"Error reading config file: {e}")
+            return None
+
+    def sending_heartbeat(self):
+        token = username = service_account = openhydra_server_url = None
+        check_config = self.read_openhydra_config()
+        if check_config:
+            token = check_config.get('token', '')
+            username = check_config.get('username', '')
+            service_account = check_config.get('service_account', '')
+            openhydra_server_url = check_config.get('server_address', '')
+
+        if all([token, username, openhydra_server_url]):
+            endpoint = f"{openhydra_server_url}/apis/open-hydra-server.openhydra.io/v1/heartbeat/devices/{username}/tokens/{token}"
+            try:
+                headers = {'Authorization': f'Bearer {service_account}'}
+                response = requests.put(endpoint, headers=headers)
+                if response.status_code == 200:
+                    self.log.info("Heartbeat sent successfully")
+                else:
+                    self.log.error(f"Failed to send heartbeat: {response.status_code}")
+            except requests.RequestException as e:
+                self.log.error(f"Failed to send heartbeat: {e}")
+        else:
+            self.log.error("Missing required configuration values")
 
     @web.authenticated
     @authorized
