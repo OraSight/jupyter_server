@@ -63,16 +63,17 @@ class SessionRootHandler(SessionsAPIHandler):
             return None
 
     def sending_heartbeat(self):
-        token = username = service_account = openhydra_server_url = None
+        token = username = service_account = openhydra_server_url = shutdown_after_lost_heartbeat_interval = None
         check_config = self.read_openhydra_config()
         if check_config:
             token = check_config.get('token', '')
             username = check_config.get('username', '')
             service_account = check_config.get('service_account', '')
             openhydra_server_url = check_config.get('server_address', '')
+            shutdown_after_lost_heartbeat_interval = check_config.get('shutdown_after_lost_heartbeat_interval', '')
 
         if all([token, username, openhydra_server_url]):
-            endpoint = f"{openhydra_server_url}/apis/open-hydra-server.openhydra.io/v1/heartbeat/devices/{username}/tokens/{token}"
+            endpoint = f"{openhydra_server_url}/apis/open-hydra-server.openhydra.io/v1/heartbeat/devices/{username}/tokens/{token}/killAfter/{shutdown_after_lost_heartbeat_interval}"
             try:
                 headers = {'Authorization': f'Bearer {service_account}'}
                 response = requests.put(endpoint, headers=headers)
