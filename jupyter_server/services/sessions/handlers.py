@@ -72,7 +72,7 @@ class SessionRootHandler(SessionsAPIHandler):
             openhydra_server_url = check_config.get('server_address', '')
             shutdown_after_lost_heartbeat_interval = check_config.get('shutdown_after_lost_heartbeat_interval', '')
 
-        if all([token, username, openhydra_server_url]):
+        if all([token, username, openhydra_server_url, shutdown_after_lost_heartbeat_interval]):
             endpoint = f"{openhydra_server_url}/apis/open-hydra-server.openhydra.io/v1/heartbeat/devices/{username}/tokens/{token}/killAfter/{shutdown_after_lost_heartbeat_interval}"
             try:
                 headers = {'Authorization': f'Bearer {service_account}'}
@@ -84,7 +84,7 @@ class SessionRootHandler(SessionsAPIHandler):
             except requests.RequestException as e:
                 self.log.error(f"Failed to send heartbeat: {e}")
         else:
-            self.log.error("Missing required configuration values")
+            self.log.error("Missing required configuration values consider user did not enable auto shutdown feature")
 
     @web.authenticated
     @authorized
